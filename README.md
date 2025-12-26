@@ -38,8 +38,78 @@ SQLite Database
 Real-Time-Stock-Market-Analysis/
 │
 ├── app.py                 # Main Streamlit application
+
 ├── stock_prediction.py    # Machine learning model & prediction logic
+
 ├── auth.py                # User authentication logic (SQLite)
+
 ├── requirements.txt       # Python dependencies
+
 ├── render.yaml            # Deployment configuration
+
 └── README.md              # Project documentation
+
+🔐 User Authentication
+
+Users can Sign Up
+
+Then Log In
+
+Access the dashboard securely
+
+Authentication uses SQLite database.
+
+📊 Features
+
+✔ Real-time data fetching
+✔ Historical stock trend visualization
+✔ Machine learning-based price prediction
+✔ Multi-stock comparison
+✔ Secure login system
+✔ Cloud-ready deployment
+
+🤖 Machine Learning Model
+
+Algorithm: Linear Regression
+
+Input: Historical closing stock prices
+
+Output: 30-day future price prediction
+
+☁️ Deployment
+
+The project can be deployed on Render Cloud using:
+
+render.yaml
+
+🚀 Applications
+
+Academic learning
+
+Data science portfolio
+
+Financial analytics
+
+Stock market demonstration
+
+⚠️ Limitations
+
+Linear Regression may not capture complex market behavior
+
+External factors (news, economy) not included
+
+Predictions are educational only — not financial advice
+
+🔮 Future Enhancements
+
+LSTM deep learning model
+
+Sentiment analysis
+
+Technical indicators
+
+Mobile-friendly UI
+
+🏁 Conclusion
+
+This project demonstrates how machine learning can be applied to analyze and forecast stock data, combining data science, web development, and cloud deployment into a single interactive system.
