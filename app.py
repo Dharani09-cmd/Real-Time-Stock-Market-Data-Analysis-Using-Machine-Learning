@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 import ssl
 import warnings
 
+# ---------- FIX SSL & WARNINGS ----------
 ssl._create_default_https_context = ssl._create_unverified_context
 warnings.filterwarnings("ignore")
 
@@ -14,6 +15,14 @@ st.title("🤖 AI Multi-Stock Market Analysis & Prediction Dashboard")
 st.write("Supports NSE (.NS) & US Stocks — Example: TCS, ITC, SBIN, AAPL")
 
 
+# ---------- SAFE SCALAR CONVERSION ----------
+def to_scalar(x):
+    if hasattr(x, "item"):
+        return x.item()
+    return float(x)
+
+
+# ---------- FORMAT SYMBOL ----------
 def format_symbol(symbol):
     symbol = symbol.strip().upper()
     if "." not in symbol:
@@ -21,12 +30,16 @@ def format_symbol(symbol):
     return symbol
 
 
+# ---------- MARKET MOOD ----------
 def market_mood(df):
     if df is None or df.empty or len(df) < 21:
         return "⚪ Not Enough Data"
-    last = float(df["Close"].iloc[-1])
-    prev = float(df["Close"].iloc[-21])
+
+    last = to_scalar(df["Close"].iloc[-1])
+    prev = to_scalar(df["Close"].iloc[-21])
+
     change = ((last - prev) / prev) * 100
+
     if change > 5:
         return "🟢 Bullish"
     elif change < -5:
@@ -34,13 +47,18 @@ def market_mood(df):
     return "⚪ Neutral"
 
 
+# ---------- RISK ----------
 def risk_score(df):
     if df is None or df.empty:
         return "⚪ Unknown"
+
     returns = df["Close"].pct_change().dropna()
+
     if returns.empty:
         return "⚪ Unknown"
-    vol = float(returns.std() * 100)
+
+    vol = to_scalar(returns.std() * 100)
+
     if vol < 1.2:
         return "🟢 Low Risk"
     elif vol < 2.5:
@@ -48,34 +66,48 @@ def risk_score(df):
     return "🔴 High Risk"
 
 
+# ---------- CRASH WARNING ----------
 def crash_warning(df):
     if df is None or df.empty or len(df) < 8:
         return "⚪ Not Enough Data"
-    last = float(df["Close"].iloc[-1])
-    week = float(df["Close"].iloc[-8])
+
+    last = to_scalar(df["Close"].iloc[-1])
+    week = to_scalar(df["Close"].iloc[-8])
+
     drop = ((week - last) / week) * 100
+
     return "⚠ Possible Downtrend" if drop > 6 else "✔ Stable"
 
 
+# ---------- PRICE PREDICTION ----------
 def predict_price(df):
     df = df.reset_index(drop=True)
+
     df["Days"] = np.arange(len(df))
+
     X = df[["Days"]]
     y = df["Close"]
+
     model = LinearRegression()
     model.fit(X, y)
+
     future = np.array([[len(df) + 30]])
-    return float(model.predict(future)[0])
+
+    return to_scalar(model.predict(future)[0])
 
 
+# ---------- PERFORMANCE GROWTH ----------
 def performance_score(df):
     if df is None or df.empty:
         return 0
-    start = float(df["Close"].iloc[0])
-    end = float(df["Close"].iloc[-1])
+
+    start = to_scalar(df["Close"].iloc[0])
+    end = to_scalar(df["Close"].iloc[-1])
+
     return ((end - start) / start) * 100
 
 
+# ---------- PORTFOLIO ----------
 def portfolio_recommendation(results):
     sorted_stocks = sorted(results, key=lambda x: x["growth"], reverse=True)
     return {
@@ -85,6 +117,7 @@ def portfolio_recommendation(results):
     }
 
 
+# ---------- UI ----------
 symbols = st.text_input(
     "Enter Stock Symbols (comma separated):",
     "TCS, ITC, SBIN, WIPRO",
@@ -101,6 +134,7 @@ if st.button("Analyze"):
         try:
             df = yf.download(stock, period="1y", progress=False)
 
+            # DATA SAFETY CHECK
             if df is None or df.empty:
                 st.error(f"❌ No data found for {stock}")
                 continue
@@ -111,8 +145,10 @@ if st.button("Analyze"):
                 st.error(f"❌ No usable data for {stock}")
                 continue
 
+            # PRICE CHART
             st.line_chart(df["Close"])
 
+            # ANALYTICS
             pred = predict_price(df)
             mood = market_mood(df)
             risk = risk_score(df)
@@ -139,6 +175,7 @@ if st.button("Analyze"):
         except Exception as e:
             st.error(f"{stock} failed — {str(e)}")
 
+    # SUMMARY SECTION
     if results:
 
         st.subheader("🏆 Performance Ranking")
