@@ -1,8 +1,13 @@
 import streamlit as st
 import yfinance as yf
-import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
+import ssl
+import warnings
+
+# ---- FIX SSL + WARNINGS ----
+ssl._create_default_https_context = ssl._create_unverified_context
+warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="AI Stock Analyzer", layout="wide")
 
@@ -20,11 +25,11 @@ def format_symbol(symbol):
 
 # ---------- MARKET MOOD ----------
 def market_mood(df):
-    if len(df) < 21:
+    if df is None or df.empty or len(df) < 21:
         return "⚪ Not Enough Data"
 
-    last = df["Close"].iloc[-1]
-    prev = df["Close"].iloc[-21]
+    last = float(df["Close"].iloc[-1])
+    prev = float(df["Close"].iloc[-21])
 
     change = ((last - prev) / prev) * 100
 
@@ -38,15 +43,15 @@ def market_mood(df):
 
 # ---------- RISK ----------
 def risk_score(df):
-    if df["Close"].isnull().all():
+    if df is None or df.empty:
         return "⚪ Unknown"
 
-    returns = df["Close"].pct_change()
+    returns = df["Close"].pct_change().dropna()
 
-    if returns.isnull().all():
+    if returns.empty:
         return "⚪ Unknown"
 
-    vol = returns.std() * 100
+    vol = float(returns.std() * 100)
 
     if vol < 1.2:
         return "🟢 Low Risk"
@@ -58,11 +63,11 @@ def risk_score(df):
 
 # ---------- CRASH WARNING ----------
 def crash_warning(df):
-    if len(df) < 8:
+    if df is None or df.empty or len(df) < 8:
         return "⚪ Not Enough Data"
 
-    last = df["Close"].iloc[-1]
-    week = df["Close"].iloc[-8]
+    last = float(df["Close"].iloc[-1])
+    week = float(df["Close"].iloc[-8])
 
     drop = ((week - last) / week) * 100
 
@@ -71,7 +76,7 @@ def crash_warning(df):
 
 # ---------- PRICE PREDICTION ----------
 def predict_price(df):
-    df = df.reset_index()
+    df = df.reset_index(drop=True)
 
     df["Days"] = np.arange(len(df))
 
@@ -81,16 +86,16 @@ def predict_price(df):
     model = LinearRegression()
     model.fit(X, y)
 
-    future = np.array([[len(df)+30]])
-    return model.predict(future)[0]
+    future = np.array([[len(df) + 30]])
+    return float(model.predict(future)[0])
 
 
 # ---------- GROWTH ----------
 def performance_score(df):
-    if len(df) < 2:
+    if df is None or df.empty:
         return 0
-    start = df["Close"].iloc[0]
-    end = df["Close"].iloc[-1]
+    start = float(df["Close"].iloc[0])
+    end = float(df["Close"].iloc[-1])
     return ((end - start) / start) * 100
 
 
@@ -119,11 +124,17 @@ if st.button("Analyze"):
         st.subheader(stock)
 
         try:
-            df = yf.download(stock, period="1y")
+            df = yf.download(stock, period="1y", progress=False)
 
             # SAFETY CHECK
             if df is None or df.empty:
                 st.error(f"❌ No data found for {stock}")
+                continue
+
+            df = df.dropna()
+
+            if df.empty:
+                st.error(f"❌ No usable price data for {stock}")
                 continue
 
             st.line_chart(df["Close"])
@@ -150,7 +161,7 @@ if st.button("Analyze"):
             })
 
         except Exception as e:
-            st.error(f"{stock} failed — {e}")
+            st.error(f"{stock} failed — {str(e)}")
 
     if results:
 
@@ -167,7 +178,7 @@ if st.button("Analyze"):
 
         st.success(f"✔ Safe Investor → {p['Low Risk']}")
         st.success(f"✔ Balanced Investor → {p['Balanced']}")
-        st.success(f"✔ High Return → {p['High Return']}")
+        st.success(f"✔ High Return Investor → {p['High Return']}")
 
         st.subheader("🤖 AI Insights")
 
