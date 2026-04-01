@@ -1,205 +1,62 @@
-import streamlit as st
-import yfinance as yf
+from flask import Flask, request, jsonify
 import numpy as np
-from sklearn.linear_model import LinearRegression
-import ssl
-import warnings
-import matplotlib.pyplot as plt   # 👈 NEW
+import pandas as pd
+import yfinance as yf
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
 
-# ---------- FIX SSL & WARNINGS ----------
-ssl._create_default_https_context = ssl._create_unverified_context
-warnings.filterwarnings("ignore")
+app = Flask(__name__)
 
-st.set_page_config(page_title="AI Stock Analyzer", layout="wide")
+def predict_stock(stock):
+    data = yf.download(stock, start="2020-01-01", end="2024-01-01")
+    data = data[['Close']]
 
-st.title("🤖 AI Multi-Stock Market Analysis & Prediction Dashboard")
-st.write("Supports NSE (.NS) & US Stocks — Example: TCS, ITC, SBIN, AAPL")
+    scaler = MinMaxScaler(feature_range=(0,1))
+    scaled_data = scaler.fit_transform(data)
 
+    X, y = [], []
+    time_step = 60
 
-# ---------- SAFE SCALAR CONVERSION ----------
-def to_scalar(x):
-    if hasattr(x, "item"):
-        return x.item()
-    return float(x)
+    for i in range(time_step, len(scaled_data)):
+        X.append(scaled_data[i-time_step:i, 0])
+        y.append(scaled_data[i, 0])
 
+    X, y = np.array(X), np.array(y)
+    X = X.reshape(X.shape[0], X.shape[1], 1)
 
-# ---------- FORMAT SYMBOL ----------
-def format_symbol(symbol):
-    symbol = symbol.strip().upper()
-    if "." not in symbol:
-        return symbol + ".NS"
-    return symbol
+    model = Sequential()
+    model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1],1)))
+    model.add(LSTM(50))
+    model.add(Dense(1))
 
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.fit(X, y, epochs=2, batch_size=32, verbose=0)
 
-# ---------- MARKET MOOD ----------
-def market_mood(df):
-    if df is None or df.empty or len(df) < 21:
-        return "⚪ Not Enough Data"
+    last_60 = scaled_data[-60:]
+    last_60 = last_60.reshape(1,60,1)
 
-    last = to_scalar(df["Close"].iloc[-1])
-    prev = to_scalar(df["Close"].iloc[-21])
+    prediction = model.predict(last_60)
+    prediction = scaler.inverse_transform(prediction)
 
-    change = ((last - prev) / prev) * 100
-
-    if change > 5:
-        return "🟢 Bullish"
-    elif change < -5:
-        return "🔴 Bearish"
-    return "⚪ Neutral"
+    return float(prediction[0][0])
 
 
-# ---------- RISK ----------
-def risk_score(df):
-    if df is None or df.empty:
-        return "⚪ Unknown"
-
-    returns = df["Close"].pct_change().dropna()
-
-    if returns.empty:
-        return "⚪ Unknown"
-
-    vol = to_scalar(returns.std() * 100)
-
-    if vol < 1.2:
-        return "🟢 Low Risk"
-    elif vol < 2.5:
-        return "🟡 Medium Risk"
-    return "🔴 High Risk"
+@app.route("/")
+def home():
+    return "LSTM Stock Prediction Running 🚀"
 
 
-# ---------- CRASH WARNING ----------
-def crash_warning(df):
-    if df is None or df.empty or len(df) < 8:
-        return "⚪ Not Enough Data"
+@app.route("/predict")
+def predict():
+    stock = request.args.get("stock", "AAPL")
+    price = predict_stock(stock)
 
-    last = to_scalar(df["Close"].iloc[-1])
-    week = to_scalar(df["Close"].iloc[-8])
-
-    drop = ((week - last) / week) * 100
-
-    return "⚠ Possible Downtrend" if drop > 6 else "✔ Stable"
+    return jsonify({
+        "stock": stock,
+        "predicted_price": price
+    })
 
 
-# ---------- PRICE PREDICTION ----------
-def predict_price(df):
-    df = df.reset_index(drop=True)
-
-    df["Days"] = np.arange(len(df))
-
-    X = df[["Days"]]
-    y = df["Close"]
-
-    model = LinearRegression()
-    model.fit(X, y)
-
-    future = np.array([[len(df) + 30]])
-
-    return to_scalar(model.predict(future)[0])
-
-
-# ---------- PERFORMANCE GROWTH ----------
-def performance_score(df):
-    if df is None or df.empty:
-        return 0
-
-    start = to_scalar(df["Close"].iloc[0])
-    end = to_scalar(df["Close"].iloc[-1])
-
-    return ((end - start) / start) * 100
-
-
-# ---------- PORTFOLIO ----------
-def portfolio_recommendation(results):
-    sorted_stocks = sorted(results, key=lambda x: x["growth"], reverse=True)
-    return {
-        "Low Risk": sorted_stocks[-1]["symbol"],
-        "Balanced": sorted_stocks[len(sorted_stocks) // 2]["symbol"],
-        "High Return": sorted_stocks[0]["symbol"],
-    }
-
-
-# ---------- UI ----------
-symbols = st.text_input(
-    "Enter Stock Symbols (comma separated):",
-    "TCS, ITC, SBIN, WIPRO",
-)
-
-if st.button("Analyze"):
-
-    stocks = [format_symbol(s) for s in symbols.split(",")]
-    results = []
-
-    for stock in stocks:
-        st.subheader(stock)
-
-        try:
-            df = yf.download(stock, period="1y", progress=False)
-
-            if df is None or df.empty:
-                st.error(f"❌ No data found for {stock}")
-                continue
-
-            df = df.dropna()
-
-            if df.empty:
-                st.error(f"❌ No usable data for {stock}")
-                continue
-
-            # ---------- PRICE CHART (Matplotlib) ----------
-            fig, ax = plt.subplots()
-            ax.plot(df.index, df["Close"])
-            ax.set_title(f"{stock} Closing Price Trend (1 Year)")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Price")
-
-            st.pyplot(fig)
-            plt.close(fig)
-
-            # ---------- ANALYTICS ----------
-            pred = predict_price(df)
-            mood = market_mood(df)
-            risk = risk_score(df)
-            warn = crash_warning(df)
-            growth = performance_score(df)
-
-            st.write(f"**Predicted Price (30 days): ₹{pred:.2f}**")
-            st.write(f"Market Mood: {mood}")
-            st.write(f"Risk Level: {risk}")
-            st.write(f"Crash Signal: {warn}")
-            st.write(f"Performance Growth: {growth:.2f}%")
-
-            results.append(
-                {
-                    "symbol": stock,
-                    "pred": pred,
-                    "mood": mood,
-                    "risk": risk,
-                    "warn": warn,
-                    "growth": growth,
-                }
-            )
-
-        except Exception as e:
-            st.error(f"{stock} failed — {str(e)}")
-
-    if results:
-
-        st.subheader("🏆 Performance Ranking")
-
-        ranked = sorted(results, key=lambda x: x["growth"], reverse=True)
-
-        for i, r in enumerate(ranked, 1):
-            st.write(f"{i}. **{r['symbol']}** — {r['growth']:.2f}% growth")
-
-        st.subheader("💼 Suggested Portfolio")
-
-        p = portfolio_recommendation(results)
-
-        st.success(f"✔ Safe Investor → {p['Low Risk']}")
-        st.success(f"✔ Balanced Investor → {p['Balanced']}")
-        st.success(f"✔ High Return Investor → {p['High Return']}")
-
-        st.subheader("🤖 AI Insights")
-
-        for r in results:
-            st.info(f"{r['symbol']} → {r['mood']} | {r['risk']} | {r['warn']}")
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
