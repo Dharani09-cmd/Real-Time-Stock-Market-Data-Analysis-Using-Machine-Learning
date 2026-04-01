@@ -1,7 +1,7 @@
-streamlit
-pandas
-matplotlib
+flask
 numpy
+pandas
 scikit-learn
 yfinance
-
+keras
+tensorflow-cpu
