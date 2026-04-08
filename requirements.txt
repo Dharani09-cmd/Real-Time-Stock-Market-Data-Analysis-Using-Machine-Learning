@@ -3,7 +3,6 @@ numpy
 pandas
 matplotlib
 scikit-learn
-tensorflow==2.13.0
 yfinance
 ta
 textblob
