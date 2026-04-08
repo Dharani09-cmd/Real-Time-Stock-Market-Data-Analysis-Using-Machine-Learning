@@ -44,11 +44,12 @@ def login(username, password):
     result = c.fetchone()
     conn.close()
     return result
-
 def get_user(username):
     conn = connect_db()
     c = conn.cursor()
+
     c.execute("SELECT * FROM users WHERE username=?", (username,))
     user = c.fetchone()
+
     conn.close()
     return user
