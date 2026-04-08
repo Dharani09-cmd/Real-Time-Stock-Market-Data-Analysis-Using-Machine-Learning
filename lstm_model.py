@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 import ta
 
@@ -15,8 +14,7 @@ def load_data(stock):
 def prepare_data(df):
     data = df[['Close','MA','RSI']]
     
-    X = []
-    y = []
+    X, y = [], []
     
     for i in range(10, len(data)):
         X.append(data.iloc[i-10:i].values.flatten())
@@ -39,7 +37,6 @@ def predict_future(model, df, days=30):
         pred = model.predict([last])[0]
         preds.append(pred)
         
-        # shift window
         last = np.roll(last, -3)
         last[-3] = pred
     
