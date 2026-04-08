@@ -1,29 +1,47 @@
-# LOGIN / SIGNUP
+import streamlit as st
+import random
+# ✅ SESSION INIT (VERY IMPORTANT)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "otp" not in st.session_state:
+    st.session_state.otp = None
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+
+# 🔐 LOGIN / SIGNUP
 if not st.session_state.logged_in:
 
     st.title("🔐 Smart Stock AI")
 
-    tab1, tab2 = st.tabs(["Login", "Signup"])   # 🔥 Better UI
+    tab1, tab2 = st.tabs(["Login", "Signup"])
 
     # ---------------- LOGIN ----------------
     with tab1:
         st.subheader("Login")
 
-        username = st.text_input("Username", key="login_user")
-        password = st.text_input("Password", type="password", key="login_pass")
+        username_login = st.text_input("Username", key="login_user")
+        password_login = st.text_input("Password", type="password", key="login_pass")
 
         if st.button("Login"):
-            user = login(username, password)
 
-            if user:
-                st.session_state.logged_in = True
-                st.session_state.user = user
-                st.success("Login successful")
-
-                st.rerun()   # 🔥 VERY IMPORTANT (fixes your issue)
+            if not username_login or not password_login:
+                st.error("Please enter username and password")
 
             else:
-                st.error("Invalid credentials")
+                user = login(username_login, password_login)
+
+                if user:
+                    st.session_state.logged_in = True
+                    st.session_state.user = user
+                    st.success("Login successful")
+
+                    st.rerun()   # 🔥 IMPORTANT
+
+                else:
+                    st.error("Invalid credentials")
 
     # ---------------- SIGNUP ----------------
     with tab2:
@@ -38,20 +56,23 @@ if not st.session_state.logged_in:
         password = st.text_input("Password", type="password", key="pass1")
         confirm_password = st.text_input("Re-enter Password", type="password", key="pass2")
 
-        # OTP
+        # OTP button
         if st.button("Send OTP"):
             st.session_state.otp = str(random.randint(1000, 9999))
-            st.success(f"OTP sent: {st.session_state.otp}")  # demo
+            st.success(f"OTP sent: {st.session_state.otp}")
 
         entered_otp = st.text_input("Enter OTP")
 
         if st.button("Signup"):
 
-            if not username or not password:
+            if not username or not password or not name:
                 st.error("Please fill all fields")
 
             elif password != confirm_password:
                 st.error("Passwords do not match")
+
+            elif st.session_state.otp is None:
+                st.error("Please generate OTP first")
 
             elif entered_otp != st.session_state.otp:
                 st.error("Invalid OTP")
@@ -59,6 +80,9 @@ if not st.session_state.logged_in:
             else:
                 if signup(username, name, location, mobile, email, password):
                     st.success("Account created successfully! Please login →")
+
+                    # 🔥 reset fields
+                    st.session_state.otp = None
 
                 else:
                     st.error("Username already exists")
